@@ -1,0 +1,5 @@
+model/egohands_data/
+model/__pycache__/
+model/.vscode/
+model/weights/
+.env/
