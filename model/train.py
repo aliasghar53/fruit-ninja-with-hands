@@ -30,6 +30,9 @@ def train_one_epoch(model, optimizer, train_loader, device, scaler):
             output = model(image)
             loss = criterion(output, target)
         
+        # update loss
+        total_loss += loss
+
         # reset gradients
         optimizer.zero_grad()
 
@@ -41,10 +44,7 @@ def train_one_epoch(model, optimizer, train_loader, device, scaler):
 
         # update optimizer and scaler
         scaler.step(optimizer)
-        scaler.update()
-
-        # update loss
-        total_loss += loss
+        scaler.update()        
 
     return total_loss / len(train_loader)
 
@@ -119,11 +119,11 @@ def main():
         print(epoch,'/',total_epochs)
 
         train_loss = train_one_epoch(model, optimizer, train_loader, device, scaler)
-        print(f"Training loss at end of Epoch {epoch}: {train_loss:.6g}")
+        print(f"Training loss at end of Epoch {epoch}: {train_loss.item():.4f}")
         print(f"Runtime = {time.time() - start_time:.4f}s")
 
         test_loss = evaluate(model, test_loader, device)
-        print(f"Test loss at end of Epoch {epoch}: {test_loss:.4f}")
+        print(f"Test loss at end of Epoch {epoch}: {test_loss.item():.4f}")
 
         scheduler.step(test_loss)
 
