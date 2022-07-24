@@ -46,6 +46,8 @@ def train_one_epoch(model, optimizer, train_loader, device, scaler):
         # update loss
         total_loss += loss
 
+    return total_loss / len(train_loader)
+
 def evaluate(model, test_loader, device):
     model.eval()
     total_loss = 0
@@ -60,7 +62,7 @@ def evaluate(model, test_loader, device):
 
             total_loss += loss
 
-    return total_loss
+    return total_loss / len(test_loader)
 
 def main():
     
@@ -118,10 +120,10 @@ def main():
 
         train_loss = train_one_epoch(model, optimizer, train_loader, device, scaler)
         print(f"Training loss at end of Epoch {epoch}: {train_loss:.6g}")
-        print(f"Runtime = {time.time() - start_time:.3g}s")
+        print(f"Runtime = {time.time() - start_time:.4f}s")
 
         test_loss = evaluate(model, test_loader, device)
-        print(f"Test loss at end of Epoch {epoch}: {test_loss:.6g}")
+        print(f"Test loss at end of Epoch {epoch}: {test_loss:.4f}")
 
         scheduler.step(test_loss)
 
