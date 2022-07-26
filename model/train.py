@@ -1,4 +1,4 @@
-import time
+from argparse import ArgumentParser
 from dataset import EgoHands
 import torch
 from torch.utils.data import SubsetRandomSampler, DataLoader
@@ -64,7 +64,7 @@ def evaluate(model, test_loader, device):
 
     return total_loss / len(test_loader)
 
-def main():
+def main(args):
     
     # use cuda if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -80,47 +80,67 @@ def main():
     # create dataloaders
     train_loader = DataLoader(
                                 train_dataset,
-                                batch_size = 2,
+                                batch_size = 8,
                                 sampler = train_sampler,
-                                num_workers = 2
+                                num_workers = 8,
+                                pin_memory=True
                             )
     
     test_loader = DataLoader(
                                 test_dataset,
-                                batch_size = 2,
+                                batch_size = 8,
                                 sampler = test_sampler,  
-                                num_workers = 2                              
+                                num_workers = 8,
+                                pin_memory=True                              
                             )
     
     # build model with pretrained weights and modify classifier heads
-    model = deeplabv3_resnet50(weights = "DeepLabV3_ResNet50_Weights.DEFAULT", progress=True, aux_loss=True)
+    weights = "ResNet50_Weights.DEFAULT" if args.pretrained else None
+    model = deeplabv3_resnet50(weights_backbone = weights, progress=True, aux_loss=False)
     model.classifier = DeepLabHead(in_channels = 2048, num_classes = 5)
-    model.aux_classifier = FCNHead(in_channels = 1024, channels = 5)
+    # model.aux_classifier = FCNHead(in_channels = 1024, channels = 5)       
 
     # copy model weights to GPU if available
     model.to(device)
 
+    # freeze backbone (only re-train new classifier head)
+    if args.pretrained:
+        for param in model.backbone.parameters():
+            param.requires_grad = False
+
+    print("Training these parameters:")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(name)
+    
     # Optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.02, weight_decay=1e-4)
 
     # learning rate scheduler
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=2)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5, threshold=0.001)
 
     # scale gradients to avoid underflow of small gradients using auto mixed precision
     scaler = torch.cuda.amp.GradScaler()
 
-    
-    total_epochs = 30
-    best_loss = float('inf')
-    for epoch in range(total_epochs):
+    # initialize starting epoch
+    start_epoch = 0
 
-        start_time = time.time()
+    if args.resume:
+        resume_state_dict = torch.load(args.resume)
+        model.load_state_dict(resume_state_dict["model"])
+        optimizer.load_state_dict(resume_state_dict["optimizer"])
+        scheduler.load_state_dict(resume_state_dict["scheduler"])
+        scaler.load_state_dict(resume_state_dict["scaler"])
+        start_epoch = resume_state_dict["epoch"] + 1
+
+    total_epochs = args.epochs
+    best_loss = float('inf')
+    for epoch in range(start_epoch, total_epochs):
 
         print(epoch,'/',total_epochs)
 
         train_loss = train_one_epoch(model, optimizer, train_loader, device, scaler)
         print(f"Training loss at end of Epoch {epoch}: {train_loss.item():.4f}")
-        print(f"Runtime = {time.time() - start_time:.4f}s")
 
         test_loss = evaluate(model, test_loader, device)
         print(f"Test loss at end of Epoch {epoch}: {test_loss.item():.4f}")
@@ -131,6 +151,7 @@ def main():
                         "model" : model.state_dict(),
                         "optimizer" : optimizer.state_dict(),
                         "scheduler" : scheduler.state_dict(),
+                        "scaler": scaler.state_dict(),
                         "epoch" : epoch
                     }
         
@@ -139,7 +160,16 @@ def main():
         if test_loss < best_loss:
             best_loss = test_loss
             torch.save(checkpoint, "./weights/best.pth")
+    
+    
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser()
+    parser.add_argument("--resume", type=str, default="")
+    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--pretrained", action="store_true")
+
+    args = parser.parse_args()
+
+    main(args)
 
