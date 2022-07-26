@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 import transforms as T
 import torch
+from PIL import Image
 
 class EgoHands(Dataset):
     def __init__(self, ROOT="./egohands_data/", transform=None, mode="train"):
@@ -48,8 +49,7 @@ class EgoHands(Dataset):
         return len(self.frame_paths)
     
     def __getitem__(self, index):
-        img = cv2.imread(self.frame_paths[index])
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = Image.open(self.frame_paths[index]).convert("RGB")
         mask = self.masks[index]
 
         if self.transform:
@@ -64,20 +64,20 @@ if __name__ == "__main__":
 
     img, mask = obj[1710]
 
-    img = np.transpose(np.array(img), (1,2,0))
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    mask = np.array(mask)
+    
+    img = img.numpy().transpose((1,2,0))
+    mask = mask.numpy()
 
 
-    c1 = np.array([255,0,0], dtype='uint8')
-    c2 = np.array([0,255,0], dtype='uint8')
-    c3 = np.array([0,0,255], dtype='uint8')
-    c4 = np.array([0.5,0.5,0.5], dtype='float32')
+    c1 = np.array([255,0,0], dtype='int8')
+    c2 = np.array([0,255,0], dtype='int8')
+    c3 = np.array([0,0,255], dtype='int8')
+    c4 = np.array([120,120,120], dtype='int8')
 
     masked_img = np.where(mask[...,None] == 1, c1, img)
     masked_img = np.where(mask[...,None] == 2, c2, masked_img)
     masked_img = np.where(mask[...,None] == 3, c3, masked_img)
     masked_img = np.where(mask[...,None] == 4, c4, masked_img)
     
-    cv2.imshow("img",masked_img)
-    cv2.waitKey()
+    masked_img = Image.fromarray(np.uint8(masked_img))
+    masked_img.show()
