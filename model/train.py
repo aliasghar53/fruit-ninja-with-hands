@@ -104,7 +104,7 @@ def main(args):
     model.to(device)
 
     # freeze backbone (only re-train new classifier head)
-    if args.pretrained:
+    if args.pretrained or args.resume:
         for param in model.backbone.parameters():
             param.requires_grad = False
 
