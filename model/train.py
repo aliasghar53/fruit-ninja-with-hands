@@ -4,13 +4,16 @@ import torch
 from torch.utils.data import SubsetRandomSampler, DataLoader
 from torchvision.models.segmentation import deeplabv3_resnet50
 from torchvision.models.segmentation.deeplabv3 import DeepLabHead, FCNHead
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import LambdaLR, LinearLR
 from tqdm import tqdm
 
 def criterion(inputs, target):
     losses = {}
     for name, x in inputs.items():
-        losses[name] = torch.nn.functional.cross_entropy(x, target)
+        if torch.max(target).item() == 1:
+            losses[name] = torch.nn.functional.binary_cross_entropy_with_logits(x, target)
+        else:
+            losses[name] = torch.nn.functional.cross_entropy(x, target)
 
     if len(losses) == 1:
         return losses["out"]
@@ -18,7 +21,7 @@ def criterion(inputs, target):
     return losses["out"] + 0.5 * losses["aux"]
 
 
-def train_one_epoch(model, optimizer, train_loader, device, scaler):
+def train_one_epoch(model, optimizer, train_loader, device, lr_scheduler, scaler):
     model.train()
     total_loss = 0
     for image, target in tqdm(train_loader):
@@ -44,7 +47,10 @@ def train_one_epoch(model, optimizer, train_loader, device, scaler):
 
         # update optimizer and scaler
         scaler.step(optimizer)
-        scaler.update()        
+        scaler.update()
+
+        # update lr scheduler
+        lr_scheduler.step()        
 
     return total_loss / len(train_loader)
 
@@ -117,7 +123,19 @@ def main(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=0.02, weight_decay=1e-4)
 
     # learning rate scheduler
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5, threshold=0.001)
+    iters_per_epoch = len(train_loader)
+    main_lr_scheduler = LambdaLR(optimizer, lambda x: (1 - x / (iters_per_epoch * (args.epochs - args.lr_warmup_epochs))) ** 0.9 )
+    if args.lr_warmup_epochs > 0:
+        warmup_iters = iters_per_epoch * args.lr_warmup_epochs      
+        warmup_lr_scheduler = LinearLR(optimizer, start_factor=0.33, total_iters=warmup_iters)
+
+        lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+                                                                optimizer, 
+                                                                schedulers=[warmup_lr_scheduler, main_lr_scheduler], 
+                                                                milestones=[warmup_iters]
+                                                            )
+    else:
+        lr_scheduler = main_lr_scheduler
 
     # scale gradients to avoid underflow of small gradients using auto mixed precision
     scaler = torch.cuda.amp.GradScaler()
@@ -129,7 +147,7 @@ def main(args):
         resume_state_dict = torch.load(args.resume)
         model.load_state_dict(resume_state_dict["model"])
         optimizer.load_state_dict(resume_state_dict["optimizer"])
-        scheduler.load_state_dict(resume_state_dict["scheduler"])
+        lr_scheduler.load_state_dict(resume_state_dict["lr_scheduler"])
         scaler.load_state_dict(resume_state_dict["scaler"])
         start_epoch = resume_state_dict["epoch"] + 1
 
@@ -139,18 +157,16 @@ def main(args):
 
         print(epoch,'/',total_epochs)
 
-        train_loss = train_one_epoch(model, optimizer, train_loader, device, scaler)
+        train_loss = train_one_epoch(model, optimizer, train_loader, device, lr_scheduler, scaler)
         print(f"Training loss at end of Epoch {epoch}: {train_loss.item():.4f}")
 
         test_loss = evaluate(model, test_loader, device)
         print(f"Test loss at end of Epoch {epoch}: {test_loss.item():.4f}")
 
-        scheduler.step(test_loss)
-
         checkpoint = {
                         "model" : model.state_dict(),
                         "optimizer" : optimizer.state_dict(),
-                        "scheduler" : scheduler.state_dict(),
+                        "lr_scheduler" : lr_scheduler.state_dict(),
                         "scaler": scaler.state_dict(),
                         "epoch" : epoch
                     }
@@ -168,6 +184,7 @@ if __name__ == "__main__":
     parser.add_argument("--resume", type=str, default="")
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--pretrained", action="store_true")
+    parser.add_argument("--lr-warmup-epochs", type=int, default=0)
 
     args = parser.parse_args()
 

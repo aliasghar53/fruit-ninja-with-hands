@@ -8,7 +8,7 @@ import torch
 from PIL import Image
 
 class EgoHands(Dataset):
-    def __init__(self, ROOT="./egohands_data/", transform=None, mode="train"):
+    def __init__(self, ROOT="./egohands_data/", transform=None, mode="train", multi_class=False):
         self.label_data = read_mat(ROOT + 'metadata.mat')
 
         self.frame_paths = sorted(glob.glob(ROOT + "_LABELLED_SAMPLES/*/*.jpg"))
@@ -24,7 +24,7 @@ class EgoHands(Dataset):
                     label = self.label_data["video"]["labelled_frames"][video_index][cls][frame_num]
 
                     if label.size > 0:
-                        cv2.fillPoly(mask, pts=np.int32([label]), color=i)
+                        cv2.fillPoly(mask, pts=np.int32([label]), color=i if multi_class else 1)
                     
                 self.masks.append(mask)
         
@@ -64,6 +64,8 @@ if __name__ == "__main__":
 
     img, mask = obj[1710]
 
+    print(torch.max(mask).item())
+
     
     img = img.numpy().transpose((1,2,0))
     mask = mask.numpy()
@@ -74,7 +76,7 @@ if __name__ == "__main__":
     c3 = np.array([0,0,255], dtype='int8')
     c4 = np.array([120,120,120], dtype='int8')
 
-    masked_img = np.where(mask[...,None] == 1, c1, img)
+    masked_img = np.where(mask[...,None] == 1, c4, img)
     masked_img = np.where(mask[...,None] == 2, c2, masked_img)
     masked_img = np.where(mask[...,None] == 3, c3, masked_img)
     masked_img = np.where(mask[...,None] == 4, c4, masked_img)
