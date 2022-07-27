@@ -64,6 +64,8 @@ if __name__ == "__main__":
 
     img, mask = obj[1710]
 
+    print(torch.max(mask).item())
+
     
     img = img.numpy().transpose((1,2,0))
     mask = mask.numpy()
