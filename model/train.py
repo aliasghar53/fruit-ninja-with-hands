@@ -10,10 +10,7 @@ from tqdm import tqdm
 def criterion(inputs, target):
     losses = {}
     for name, x in inputs.items():
-        if torch.max(target).item() == 1:
-            losses[name] = torch.nn.functional.binary_cross_entropy_with_logits(x, target)
-        else:
-            losses[name] = torch.nn.functional.cross_entropy(x, target)
+        losses[name] = torch.nn.functional.cross_entropy(x, target)
 
     if len(losses) == 1:
         return losses["out"]
@@ -103,7 +100,7 @@ def main(args):
     # build model with pretrained weights and modify classifier heads
     weights = "ResNet50_Weights.DEFAULT" if args.pretrained else None
     model = deeplabv3_resnet50(weights_backbone = weights, progress=True, aux_loss=False)
-    model.classifier = DeepLabHead(in_channels = 2048, num_classes = 5)
+    model.classifier = DeepLabHead(in_channels = 2048, num_classes = args.num_classes)
     # model.aux_classifier = FCNHead(in_channels = 1024, channels = 5)       
 
     # copy model weights to GPU if available
@@ -185,6 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--pretrained", action="store_true")
     parser.add_argument("--lr-warmup-epochs", type=int, default=0)
+    parser.add_argument("--num-classes", type=int, default=2)
 
     args = parser.parse_args()
 
