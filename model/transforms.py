@@ -48,6 +48,14 @@ class RandomResize:
         target = F.resize(target, size, interpolation=T.InterpolationMode.NEAREST)
         return image, target
 
+class Resize:
+    def __init__(self, size=None):
+        self.size = size
+
+    def __call__(self, image, target):
+        image = F.resize(image, self.size)
+        target = F.resize(target, self.size, interpolation=T.InterpolationMode.NEAREST)
+        return image, target
 
 class RandomHorizontalFlip:
     def __init__(self, flip_prob):

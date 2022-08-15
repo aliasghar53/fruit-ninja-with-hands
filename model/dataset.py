@@ -38,6 +38,7 @@ class EgoHands(Dataset):
                                         ])
         elif (mode == "eval") and (transform is None):
             self.transform = T.Compose([
+                                        T.Resize((256,512)),
                                         T.ToTensor(),
                                         T.ConvertImageDtype(torch.float),
                                         T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
