@@ -30,6 +30,7 @@ class EgoHands(Dataset):
         
         if (mode == "train") and (transform is None):
             self.transform = T.Compose([
+                                        T.Resize((256,512)),
                                         T.ToTensor(),
                                         T.ColorJitter(hue=0.1, saturation=0.25),
                                         T.RandomHorizontalFlip(0.5),
