@@ -54,7 +54,7 @@ class Resize:
 
     def __call__(self, image, target):
         image = F.resize(image, self.size)
-        target = F.resize(target, self.size, interpolation=T.InterpolationMode.NEAREST)
+        target = F.resize(target.unsqueeze(0), self.size, interpolation=T.InterpolationMode.NEAREST).squeeze(0)
         return image, target
 
 class RandomHorizontalFlip:
