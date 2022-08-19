@@ -74,7 +74,7 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # create training dataset using a 80:20 train:test split
-    ego_hands_train = EgoHands(mode="train", size=224)
+    ego_hands_train = EgoHands(mode="train", size=(224,224))
     frei_hands_train = FreiHands(mode="train", size=224)
 
     # create subset datasets that will be used for training
@@ -91,7 +91,7 @@ def main(args):
     train_dataset = ConcatDataset([ego_train_subset, frei_train_subset])
 
     # create test dataset
-    ego_hands_test = EgoHands(mode="eval", size=224)
+    ego_hands_test = EgoHands(mode="eval", size=(224,224))
     frei_hands_test = FreiHands(mode="eval", size=224)
 
     # create subset datasets that will be used for training
