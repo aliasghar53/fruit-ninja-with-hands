@@ -1,6 +1,6 @@
-model/egohands_data/
+model/data/
 model/__pycache__/
 model/.vscode/
-model/weights/
+model/ckpt/
 .env/
 .vscode/launch.json

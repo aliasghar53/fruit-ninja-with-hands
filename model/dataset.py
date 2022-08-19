@@ -6,9 +6,10 @@ import cv2
 import transforms as T
 import torch
 from PIL import Image
+from presets import SegEvalTransform, SegTrainTransform
 
 class EgoHands(Dataset):
-    def __init__(self, ROOT="./egohands_data/", transform=None, mode="train", multi_class=False):
+    def __init__(self, ROOT="./data/egohands_data/", transform=None, mode="eval", multi_class=False, size=(256,512)):
         self.label_data = read_mat(ROOT + 'metadata.mat')
 
         self.frame_paths = sorted(glob.glob(ROOT + "_LABELLED_SAMPLES/*/*.jpg"))
@@ -29,21 +30,9 @@ class EgoHands(Dataset):
                 self.masks.append(mask)
         
         if (mode == "train") and (transform is None):
-            self.transform = T.Compose([                                        
-                                        T.ToTensor(),
-                                        T.Resize((256,512)),
-                                        T.ColorJitter(hue=0.1, saturation=0.25),
-                                        T.RandomHorizontalFlip(0.5),
-                                        T.ConvertImageDtype(torch.float),
-                                        T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-                                        ])
+            self.transform = SegTrainTransform(size=size)
         elif (mode == "eval") and (transform is None):
-            self.transform = T.Compose([                                        
-                                        T.ToTensor(),
-                                        T.Resize((256,512)),
-                                        T.ConvertImageDtype(torch.float),
-                                        T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-                                        ])
+            self.transform = SegEvalTransform(size=size)
         else:
             self.transform = transform  
 
@@ -60,25 +49,53 @@ class EgoHands(Dataset):
         return img, mask
 
 
+class FreiHands(Dataset):
+    def __init__(self, ROOT="./data/FreiHAND_pub_v2_eval/evaluation/", mode="eval", transform=None, size=224):
+        self.img_paths = sorted(glob.glob(ROOT + "rgb/*.jpg"))
+        self.mask_paths = sorted(glob.glob(ROOT + "segmap/*.png"))
+
+        if (mode == "train") and (transform is None):
+            self.transform = SegTrainTransform(size=size)
+        elif (mode == "eval") and (transform is None):
+            self.transform = SegEvalTransform(size=size)
+        else:
+            self.transform = transform  
+    
+    def __len__(self):
+        return len(self.img_paths)
+    
+    def __getitem__(self, index):
+        
+        img = Image.open(self.img_paths[index]).convert("RGB")
+        mask = Image.open(self.mask_paths[index])
+        mask = np.array(mask)
+        mask = np.where(mask > 0, 1, 0)
+
+        if self.transform:
+            img, mask = self.transform(img, mask)
+
+        return img, mask
+
+
 # Some testing of the code
 if __name__ == "__main__":
-    obj = EgoHands(mode="eval")
-
-    img, mask = obj[1710]
+    obj = FreiHands(size=224)
     
+    img, mask = obj[0]
+
     img = img.numpy().transpose((1,2,0))
     mask = mask.numpy()
 
 
-    c1 = np.array([255,0,0], dtype='int8')
+    # c1 = np.array([255,0,0], dtype='int8')
     c2 = np.array([0,255,0], dtype='int8')
-    c3 = np.array([0,0,255], dtype='int8')
-    c4 = np.array([120,120,120], dtype='int8')
+    # c3 = np.array([0,0,255], dtype='int8')
+    # c4 = np.array([120,120,120], dtype='int8')
 
-    masked_img = np.where(mask[...,None] == 1, c4, img)
-    masked_img = np.where(mask[...,None] == 2, c2, masked_img)
-    masked_img = np.where(mask[...,None] == 3, c3, masked_img)
-    masked_img = np.where(mask[...,None] == 4, c4, masked_img)
+    masked_img = np.where(mask[...,None] == 1, c2, img)
+    # masked_img = np.where(mask[...,None] == 2, c2, masked_img)
+    # masked_img = np.where(mask[...,None] == 3, c3, masked_img)
+    # masked_img = np.where(mask[...,None] == 4, c4, masked_img)
     
     masked_img = Image.fromarray(np.uint8(masked_img))
     masked_img.show()

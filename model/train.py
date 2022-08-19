@@ -1,11 +1,12 @@
 from argparse import ArgumentParser
-from dataset import EgoHands
+from dataset import EgoHands, FreiHands
 import torch
-from torch.utils.data import SubsetRandomSampler, DataLoader
+from torch.utils.data import DataLoader, Subset, ConcatDataset
 from torchvision.models.segmentation import deeplabv3_resnet50
-from torchvision.models.segmentation.deeplabv3 import DeepLabHead, FCNHead
+from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 from torch.optim.lr_scheduler import LambdaLR, LinearLR
 from tqdm import tqdm
+from random import shuffle
 
 def criterion(inputs, target):
     losses = {}
@@ -72,27 +73,47 @@ def main(args):
     # use cuda if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # create datasets
-    train_dataset = EgoHands(mode="train")
-    test_dataset = EgoHands(mode="eval")
+    # create training dataset using a 80:20 train:test split
+    ego_hands_train = EgoHands(mode="train", size=224)
+    frei_hands_train = FreiHands(mode="train", size=224)
 
-    # create samplers and split dataset based on index
-    train_sampler = SubsetRandomSampler(list(range(4000)))
-    test_sampler =  SubsetRandomSampler(list(range(4000,4800)))
+    # create subset datasets that will be used for training
+    ego_len = len(ego_hands_train)
+    frei_len = len(frei_hands_train)
+    ego_indices = list(range(ego_len))
+    shuffle(ego_indices)
+    frei_indices = list(range(frei_len))
+    shuffle(frei_indices)
+    ego_train_subset = Subset(ego_hands_train, ego_indices[0:int(0.8*ego_len)])
+    frei_train_subset = Subset(frei_hands_train, frei_indices[0:int(0.8*frei_len)])
+
+    # Concatenate both datasets
+    train_dataset = ConcatDataset([ego_train_subset, frei_train_subset])
+
+    # create test dataset
+    ego_hands_test = EgoHands(mode="eval", size=224)
+    frei_hands_test = FreiHands(mode="eval", size=224)
+
+    # create subset datasets that will be used for training
+    ego_test_subset = Subset(ego_hands_test, ego_indices[int(0.8*ego_len):])
+    frei_test_subset = Subset(frei_hands_test, frei_indices[int(0.8*ego_len):])
+
+    # Concatenate both datasets
+    test_dataset = ConcatDataset([ego_test_subset, frei_test_subset])
 
     # create dataloaders
     train_loader = DataLoader(
                                 train_dataset,
-                                batch_size = 8,
-                                sampler = train_sampler,
+                                batch_size = 2,
+                                shuffle=True,
                                 num_workers = 8,
                                 pin_memory=True
                             )
     
     test_loader = DataLoader(
                                 test_dataset,
-                                batch_size = 8,
-                                sampler = test_sampler,  
+                                batch_size = 2,
+                                shuffle=True,  
                                 num_workers = 8,
                                 pin_memory=True                              
                             )
@@ -168,11 +189,11 @@ def main(args):
                         "epoch" : epoch
                     }
         
-        torch.save(checkpoint, "./weights/last.pth")
+        torch.save(checkpoint, "./ckpt/last.pth")
 
         if test_loss < best_loss:
             best_loss = test_loss
-            torch.save(checkpoint, "./weights/best.pth")
+            torch.save(checkpoint, "./ckpt/best.pth")
     
     
 
@@ -181,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("--resume", type=str, default="")
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--pretrained", action="store_true")
-    parser.add_argument("--lr-warmup-epochs", type=int, default=0)
+    parser.add_argument("--lr-warmup-epochs", type=int, default=5)
     parser.add_argument("--num-classes", type=int, default=2)
 
     args = parser.parse_args()
