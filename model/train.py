@@ -7,6 +7,7 @@ from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 from torch.optim.lr_scheduler import LambdaLR, LinearLR
 from tqdm import tqdm
 from random import shuffle
+from multi_task_scheduler import BatchSchedulerSampler
 
 def criterion(inputs, target):
     losses = {}
@@ -74,16 +75,16 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # create training dataset using a 80:20 train:test split
-    ego_hands_train = EgoHands(mode="train", size=(224,224))
-    frei_hands_train = FreiHands(mode="train", size=224)
+    ego_hands_train = EgoHands(mode="train", size=224)
+    frei_hands_train = FreiHands(mode="train")
 
     # create subset datasets that will be used for training
     ego_len = len(ego_hands_train)
     frei_len = len(frei_hands_train)
     ego_indices = list(range(ego_len))
-    shuffle(ego_indices)
+    # shuffle(ego_indices)
     frei_indices = list(range(frei_len))
-    shuffle(frei_indices)
+    # shuffle(frei_indices)
     ego_train_subset = Subset(ego_hands_train, ego_indices[0:int(0.8*ego_len)])
     frei_train_subset = Subset(frei_hands_train, frei_indices[0:int(0.8*frei_len)])
 
@@ -91,8 +92,8 @@ def main(args):
     train_dataset = ConcatDataset([ego_train_subset, frei_train_subset])
 
     # create test dataset
-    ego_hands_test = EgoHands(mode="eval", size=(224,224))
-    frei_hands_test = FreiHands(mode="eval", size=224)
+    ego_hands_test = EgoHands(mode="eval", size=224)
+    frei_hands_test = FreiHands(mode="eval")
 
     # create subset datasets that will be used for training
     ego_test_subset = Subset(ego_hands_test, ego_indices[int(0.8*ego_len):])
@@ -104,8 +105,8 @@ def main(args):
     # create dataloaders
     train_loader = DataLoader(
                                 train_dataset,
-                                batch_size = 2,
-                                shuffle=True,
+                                batch_size = 16,
+                                sampler=BatchSchedulerSampler(train_dataset, 16),
                                 num_workers = 8,
                                 pin_memory=True
                             )
@@ -113,7 +114,7 @@ def main(args):
     test_loader = DataLoader(
                                 test_dataset,
                                 batch_size = 2,
-                                shuffle=True,  
+                                sampler=BatchSchedulerSampler(test_dataset, 16),  
                                 num_workers = 8,
                                 pin_memory=True                              
                             )
