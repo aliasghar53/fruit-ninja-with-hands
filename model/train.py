@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-from dataset import EgoHands, FreiHands
 import torch
 from torch.utils.data import DataLoader, Subset, ConcatDataset
 from torchvision.models.segmentation import deeplabv3_resnet50
@@ -7,7 +6,18 @@ from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 from torch.optim.lr_scheduler import LambdaLR, LinearLR
 from tqdm import tqdm
 from random import shuffle
-from multi_task_scheduler import BatchSchedulerSampler
+
+from pathlib import Path
+import sys, os
+
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[1]  # YOLOv5 root directory
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))  # add ROOT to PATH
+ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
+
+from model.dataset import EgoHands, FreiHands
+from model.multi_task_scheduler import BatchSchedulerSampler
 
 def criterion(inputs, target):
     losses = {}
@@ -130,8 +140,9 @@ def main(args):
 
     # freeze backbone (only re-train new classifier head)
     if args.pretrained or args.resume:
-        for param in model.backbone.parameters():
-            param.requires_grad = False
+        for name, param in model.backbone.named_parameters():
+            if not name.split('.')[0] == "layer4":
+                param.requires_grad = False
 
     print("Training these parameters:")
     for name, param in model.named_parameters():

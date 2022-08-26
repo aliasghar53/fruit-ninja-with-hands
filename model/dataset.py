@@ -3,10 +3,20 @@ from pymatreader import read_mat
 import glob
 import numpy as np
 import cv2
-import transforms as T
 import torch
 from PIL import Image
-from presets import SegEvalTransform, SegTrainTransform
+
+from pathlib import Path
+import sys, os
+
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[1]  # YOLOv5 root directory
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))  # add ROOT to PATH
+ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
+
+import model.transforms as T
+from model.presets import SegEvalTransform, SegTrainTransform
 
 class EgoHands(Dataset):
     def __init__(self, ROOT="./data/egohands_data/", transform=None, mode="eval", multi_class=False, size=(256,512)):
