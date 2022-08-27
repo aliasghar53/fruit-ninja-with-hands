@@ -31,7 +31,7 @@ webcam = Webcam(size, display)
 transform = SegInferTransform(size=224)
 
 # build and load model weights
-model = deeplabv3_resnet50(weights=None, progress=True, aux_loss=False)
+model = deeplabv3_resnet50(progress=True, aux_loss=False)
 model.classifier = DeepLabHead(in_channels = 2048, num_classes = 2)
 model_state_dict = torch.load("../model/ckpt/ckpt_bb/best.pth")["model"]
 model.load_state_dict(model_state_dict, strict=True)
