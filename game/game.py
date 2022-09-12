@@ -13,6 +13,7 @@ import numpy as np
 import torchvision.transforms as T
 from torchvision.transforms import functional as F
 from camera import Webcam
+import argparse
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
@@ -22,6 +23,9 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from model.presets import SegInferTransform
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--path", type=str, default="../model/ckpt/ckpt_bb/hand_segmentation_model.pth")
+args = parser.parse_args()
 
 # transform for inference
 transform = SegInferTransform(size=224)
@@ -29,7 +33,7 @@ transform = SegInferTransform(size=224)
 # build and load model weights
 model = deeplabv3_resnet50(pretrained=False, progress=True, aux_loss=False)
 model.classifier = DeepLabHead(in_channels = 2048, num_classes = 2)
-model_state_dict = torch.load("../model/ckpt/ckpt_bb/best.pth")["model"]
+model_state_dict = torch.load(args.path)["model"]
 model.load_state_dict(model_state_dict, strict=True)
 model.eval()
 
