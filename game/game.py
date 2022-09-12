@@ -1,7 +1,6 @@
 import pygame
 import os
 import random
-from camera import Webcam
 from pygame.locals import *
 import pygame.gfxdraw
 from pathlib import Path
@@ -13,7 +12,7 @@ from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 import numpy as np
 import torchvision.transforms as T
 from torchvision.transforms import functional as F
-
+from camera import Webcam
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
@@ -23,19 +22,22 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from model.presets import SegInferTransform
 
+
 # transform for inference
 transform = SegInferTransform(size=224)
 
 # build and load model weights
-model = deeplabv3_resnet50(weights=None, progress=True, aux_loss=False)
+model = deeplabv3_resnet50(pretrained=False, progress=True, aux_loss=False)
 model.classifier = DeepLabHead(in_channels = 2048, num_classes = 2)
 model_state_dict = torch.load("../model/ckpt/ckpt_bb/best.pth")["model"]
 model.load_state_dict(model_state_dict, strict=True)
 model.eval()
 
+
 # check if gpu is available
-if torch.cuda.is_available():
-    model.to('cuda')
+device = "cuda" if torch.cuda.is_available() else "cpu"
+assert device == "cuda", "Sorry, the game won't work well without an NVIDIA GPU at the moment"
+model.to(device)
 
 # used for making hand masks
 c = np.array([0,255,0], dtype='uint8')
@@ -67,7 +69,7 @@ score_text = font.render('Score : ' + str(score), True, (255, 255, 255))    #sco
 lives_icon = pygame.image.load('images/white_lives.png')                    #images that shows remaining lives
 
 # generate hand mask
-def get_hand_mask(img_surface):
+def get_hand_mask(img_surface, device):
     '''
     take a image (pygame Surface) and return a mask (pygame Mask) of the hand
     '''
@@ -80,8 +82,7 @@ def get_hand_mask(img_surface):
     input_batch = input.unsqueeze(0)
 
     # perform inference
-    if torch.cuda.is_available():
-        input_batch = input_batch.to('cuda')
+    input_batch = input_batch.to(device)
 
     with torch.inference_mode():
         output = model(input_batch)['out'][0]
@@ -113,9 +114,9 @@ def generate_random_fruits(fruit):
         'x' : random.randint(100,WIDTH-100),          #where the fruit should be positioned on x-coordinate
         'y' : HEIGHT+20,
         'speed_x': random.randint(-10,10),      #how fast the fruit should move in x direction. Controls the diagonal movement of fruits
-        'speed_y': random.randint(-400, -300),    #control the speed of fruits in y-directionn ( UP )
+        'speed_y': random.randint(-300, -200),    #control the speed of fruits in y-directionn ( UP )
         'throw': False,                         #determines if the generated coordinate of the fruits is outside the gameDisplay or not. If outside, then it will be discarded
-        't': 0,                                 #manages the
+        't': 0,                                 #manages the flight time
         'hit': False,
         "mask": pygame.mask.from_surface(image)
     }
@@ -193,11 +194,11 @@ while game_running :
             
 
     frame = webcam.get_frame() 
-    hand_mask = get_hand_mask(frame)
+    hand_mask = get_hand_mask(frame, device)
     
-    if hand_mask.count()>5000:
-        coords = hand_mask.outline(every=5)
-        # pygame.gfxdraw.filled_polygon(frame, coords, (0,255,0))
+    # if hand_mask.count()>10000:
+    #     coords = hand_mask.outline(every=5)
+    #     pygame.gfxdraw.filled_polygon(frame, coords, (0,255,0))
         
     gameDisplay.blit(frame, (0,0))
     gameDisplay.blit(score_text, (0, 0))
@@ -207,19 +208,20 @@ while game_running :
         if value['throw']:
             value['x'] += value['speed_x'] * (dt/1000)          #moving the fruits in x-coordinates
             value['y'] += value['speed_y'] * (dt/1000)         #moving the fruits in y-coordinate
-            value['speed_y'] += (1 * value['t'])    #increasing y-corrdinate
-            value['t'] += 1                         #increasing speed_y for next loop
+            value['speed_y'] += (100 * dt/1000)    #increasing y-corrdinate
+            # value['t'] += 1                         #increasing speed_y for next loop
 
             if value['y'] <= HEIGHT+20:
                 gameDisplay.blit(value['img'], (value['x'], value['y']))    #displaying the fruit inside screen dynamically
                 hand_rect = hand_mask.get_rect()
                 overlap_mask = hand_mask.overlap_mask(value['mask'], (value['x'] - hand_rect.left, value["y"] - hand_rect.top))
-                if overlap_mask.count()>100:
-                    gameDisplay.blit(overlap_mask.to_surface(setcolor=(255,0,255,255), unsetcolor=(0,0,0,0)), (hand_rect.left, hand_rect.top))
+                
             else:
                 generate_random_fruits(key)        
  
-            if overlap_mask.count() > 100 and not value["hit"]:
+            if overlap_mask.count() > 500 and not value["hit"] and hand_mask.count()>10000:
+                
+                gameDisplay.blit(overlap_mask.to_surface(setcolor=(255,0,255,255), unsetcolor=(0,0,0,0)), (hand_rect.left, hand_rect.top))
                 if key == 'bomb':
                     player_lives -= 1
                     if player_lives == 0 :
@@ -240,7 +242,7 @@ while game_running :
             generate_random_fruits(key)
 
     pygame.display.update()
-    dt = clock.tick(FPS)      # keep loop running at the right speed (manages the frame/second. The loop should update afer every 1/12th pf the sec
-                        
+    dt = clock.tick(FPS)      # keep loop running at the right framerate 
+    print(1000/dt) 
 
 pygame.quit()

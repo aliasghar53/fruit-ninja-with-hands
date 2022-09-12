@@ -11,6 +11,8 @@ from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 import numpy as np
 import torchvision.transforms as T
 from torchvision.transforms import functional as F
+import tensorrt
+import torch_tensorrt
 
 
 FILE = Path(__file__).resolve()
@@ -28,13 +30,14 @@ display = pygame.display.set_mode(size, 0)
 webcam = Webcam(size, display)
 
 # transform for inference
-transform = SegInferTransform(size=224)
+transform = SegInferTransform(size=(224))
 
 # build and load model weights
-model = deeplabv3_resnet50(progress=True, aux_loss=False)
-model.classifier = DeepLabHead(in_channels = 2048, num_classes = 2)
-model_state_dict = torch.load("../model/ckpt/ckpt_bb/best.pth")["model"]
-model.load_state_dict(model_state_dict, strict=True)
+# model = deeplabv3_resnet50(progress=True, aux_loss=False)
+# model.classifier = DeepLabHead(in_channels = 2048, num_classes = 2)
+# model_state_dict = torch.load("../model/ckpt/ckpt_bb/best.pth")["model"]
+# model.load_state_dict(model_state_dict, strict=True)
+model = torch.jit.load("/home/ali/fruit_ninja/game/traced_model.pt")
 model.eval()
 
 # check if gpu is available

@@ -28,15 +28,21 @@ model_state_dict = torch.load("../model/ckpt/ckpt_bb/best.pth")["model"]
 model.load_state_dict(model_state_dict, strict=True)
 model.eval()
 
-ego_hands = EgoHands(mode="eval", size=224)
-frei_hands = FreiHands(mode="eval")
+sample_input = torch.empty([1,3,298,224])
+traced_model = torch.jit.trace(model, sample_input, strict=False)
 
-dataset = ConcatDataset([ego_hands, frei_hands])
+traced_model.to("cuda:0")
+
+# ego_hands = EgoHands(mode="eval", size=(298,224))
+frei_hands = FreiHands(mode="eval", size=(298,224))
+
+# dataset = ConcatDataset([ego_hands, frei_hands])
 
 data_loader = DataLoader(
-                        dataset,
-                        batch_size = 1,
-                        sampler=BatchSchedulerSampler(dataset, 1),  
+                        frei_hands,
+                        batch_size = 4,
+                        # sampler=BatchSchedulerSampler(dataset, 1), 
+                        shuffle=True, 
                         num_workers = 1,
                         pin_memory=True                              
                     )
@@ -49,7 +55,7 @@ calibrator = torch_tensorrt.ptq.DataLoaderCalibrator(
     device=torch.device("cuda:0"),
 )
 
-trt_model = torch_tensorrt.compile(model, inputs=[torch_tensorrt.Input((1, 3, 224, 224))],
+trt_model = torch_tensorrt.compile(traced_model, inputs=[torch_tensorrt.Input((1, 3, 298, 224))],
                                     enabled_precisions={torch.float, torch.half, torch.int8},
                                     calibrator=calibrator,
                                     device={

@@ -4,3 +4,7 @@ model/.vscode/
 model/ckpt/
 .env/
 .vscode/launch.json
+model/optimized_best.ts
+game/traced_model.pt
+game/__pycache__/
+model/calibration.cache

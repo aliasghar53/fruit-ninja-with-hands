@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 import model.transforms as T
-from model.presets import SegEvalTransform, SegTrainTransform
+from model.presets import SegEvalTransform, SegTrainTransform, SegInferTransform
 
 class EgoHands(Dataset):
     def __init__(self, ROOT="./data/egohands_data/", transform=None, mode="eval", multi_class=False, size=(256,512)):
@@ -86,6 +86,25 @@ class FreiHands(Dataset):
 
         return img, mask
 
+class EgoHandsTest(Dataset):
+    def __init__(self, ROOT="./data/egohands_data/", transform=None, mode="test", size=(256,512)):
+        self.frame_paths = sorted(glob.glob(ROOT + "_LABELLED_SAMPLES/*/*.jpg"))
+        
+        if (mode == "test") and (transform is None):
+            self.transform = SegInferTransform(size=size)
+        else:
+            self.transform = transform  
+
+    def __len__(self):
+        return len(self.frame_paths)
+    
+    def __getitem__(self, index):
+        img = Image.open(self.frame_paths[index]).convert("RGB")
+
+        if self.transform:
+            img = self.transform(img)
+
+        return img
 
 # Some testing of the code
 if __name__ == "__main__":

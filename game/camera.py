@@ -9,7 +9,7 @@ class Webcam:
 
         pygame.camera.init()
 
-        # this is the same as what we saw before
+        # verify if camera is available
         self.clist = pygame.camera.list_cameras()
         if not self.clist:
             raise ValueError("Sorry, no cameras detected.")
@@ -21,14 +21,13 @@ class Webcam:
         self.snapshot = pygame.surface.Surface(self.size, 0, self.display)
 
     def get_frame(self):
-        # if you don't want to tie the framerate to the camera, you can check
+        # To not tie the framerate to the camera, check
         # if the camera has an image ready.  note that while this works
         # on most cameras, some will never return true.
         if self.cam.query_image():
             self.snapshot = self.cam.get_image(self.snapshot)
 
-        # blit it to the display surface.  simple!
+        # flip and return
         self.flipped = pygame.transform.flip(self.snapshot, True, False)
-        # self.display.blit(self.flipped , (0,0))
-        # pygame.display.flip()
+        
         return self.flipped
